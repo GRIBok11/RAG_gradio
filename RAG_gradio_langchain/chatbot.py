@@ -5,7 +5,7 @@ from retriever import retriever
 from chain import chain
 import mimetypes
 
-request_count = 0
+request_count = 1
 max_requests = 20
 history = []
 
@@ -21,15 +21,18 @@ def add_message(history, message):
         return history, gr.MultimodalTextbox(value="Please enter a message or upload a file.", interactive=True)
     
     for x in message["files"]:
-        mime_type, encoding = mimetypes.guess_type(x)
-        docs = load_documents(x, mime_type)
-        retriever.add_documents(docs, ids=None)
-        history.append((x, None))
+        try:
+            mime_type, encoding = mimetypes.guess_type(x)
+            docs = load_documents(x, mime_type)
+            retriever.add_documents(docs, ids=None)
+            history.append((x, None))
+        except Exception as e:
+            print(f"Error processing file {x}: {e}")
+            continue
 
     if message["text"] is not None:
         history.append((message["text"], None))
     
-    request_count += 1
     return history, gr.MultimodalTextbox(value=None, interactive=False)
 
 def bot(history):
@@ -45,19 +48,29 @@ def bot(history):
             history_langchain_format.append(HumanMessage(content=human))
         if ai is not None:
             history_langchain_format.append(AIMessage(content=ai))
-    gpt_response = chain.invoke({"question": history[-1][0]})
-    history[-1][1] = gpt_response  # Обрабатываем строковый ответ
+    try:
+        
+        gpt_response = chain.invoke({"question": history[-1][0]})
+        gpt_response += f"\n\nRequest Count: {request_count}/{max_requests}"
+        request_count+=0.5
+        history[-1][1] = gpt_response  # Обрабатываем строковый ответ
+    except Exception as e:
+        print(f"Error generating response: {e}")
+        history[-1][1] = f"An error occurred while generating the response.\n\nRequest Count: {request_count}/{max_requests}"
     
     request_count += 1
     return history
 
 def clear_history():
     from retriever import vectorstore
-    for collection in vectorstore._client.list_collections():
-        ids = collection.get()['ids']
-        print('REMOVE %s document(s) from %s collection' % (str(len(ids)), collection.name))
-        if len(ids): collection.delete(ids)
-    from loaders import loade
-    do = loade.load()
-    retriever.add_documents(do) 
+    try:
+        for collection in vectorstore._client.list_collections():
+            ids = collection.get()['ids']
+            print('REMOVE %s document(s) from %s collection' % (str(len(ids)), collection.name))
+            if len(ids): collection.delete(ids)
+        from loaders import loade
+        do = loade.load()
+        retriever.add_documents(do) 
+    except Exception as e:
+        print(f"Error clearing history: {e}")
     return [], gr.MultimodalTextbox(value=None, interactive=True)

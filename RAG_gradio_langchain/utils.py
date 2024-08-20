@@ -6,3 +6,5 @@ def random_plot():
                     size='petal_length', hover_data=['petal_width'])
     return fig
 
+def update_request_count(request_count, max_requests):
+    return f"{request_count}/{max_requests}"
