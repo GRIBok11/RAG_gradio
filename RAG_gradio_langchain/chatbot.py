@@ -5,7 +5,7 @@ from retriever import retriever
 from chain import chain
 import mimetypes
 
-request_count = 1
+request_count = 0
 max_requests = 20
 history = []
 
@@ -32,11 +32,14 @@ def add_message(history, message):
 
     if message["text"] is not None:
         history.append((message["text"], None))
-    
+    print(history)
     return history, gr.MultimodalTextbox(value=None, interactive=False)
 
 def bot(history):
+    
     global request_count
+    request_count=len(history)
+    print(len(history))
     if request_count >= max_requests:
         return history
     
@@ -58,7 +61,6 @@ def bot(history):
         print(f"Error generating response: {e}")
         history[-1][1] = f"An error occurred while generating the response.\n\nRequest Count: {request_count}/{max_requests}"
     
-    request_count += 1
     return history
 
 def clear_history():
