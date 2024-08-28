@@ -15,7 +15,7 @@ import uuid
 from starlette.requests import Request
 from starlette.responses import RedirectResponse
 
-clear_history()
+#clear_history()
 
 from sqlalchemy import create_engine, Column, Integer, String
 from sqlalchemy.ext.declarative import declarative_base
@@ -27,6 +27,7 @@ engine = create_engine(DATABASE_URL)
 Base = declarative_base()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+flag = False
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
@@ -85,13 +86,17 @@ def login_user(username: str, password: str):
         user.session_id = session_id
         session.commit()
         session.close()
+        flag = True
         return f"Welcome, {username}!"
     else:
         return "Invalid username or password"
 
 def handle_register(username, password):
+    
     result = register_user(username, password)
     if result == "User registered successfully":
+        global flag 
+        flag = True
         result = login_user(username, password)
         if "Welcome" in result:
             return (gr.update(visible=False), gr.update(visible=False),
@@ -100,14 +105,19 @@ def handle_register(username, password):
     return gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), result
 
 def handle_login(username, password):
+    
     result = login_user(username, password)
     if "Welcome" in result:
+        global flag 
+        flag = True
         return (gr.update(visible=False), gr.update(visible=False),
                 gr.update(visible=True), gr.update(visible=False),
                 gr.update(visible=False), result)
     return gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), result
 
 def handle_logout():
+    global flag 
+    flag = False
     result = "Logged out successfully"
     return (gr.update(visible=True), gr.update(visible=True),
             gr.update(visible=False), result,
@@ -120,17 +130,29 @@ with gr.Blocks(fill_height=True) as demo:
 
     with gr.Row():
         with gr.Column():
-            welcome_text = gr.Textbox(label="", visible=True, interactive=False)
+            welcome_text = gr.Textbox(value="Please log in", visible=True, interactive=False, label="")
             username_input = gr.Textbox(label="Username")
             password_input = gr.Textbox(label="Password", type="password")
             register_button = gr.Button("Register")
             login_button = gr.Button("Login")
             logout_button = gr.Button("Logout", visible=False)
     
+    def chat_logic(chatbot, chat_input):
+        if not flag:
+            welcome_text.value = "You must log in to send messages."
+            return 0
+        print("name:")
+        print(f"{User.username}")
+        return add_message(chatbot, chat_input) 
 
-
-    chat_msg = chat_input.submit(add_message, [chatbot, chat_input], [chatbot, chat_input])
-    bot_msg = chat_msg.then(bot, chatbot, chatbot, api_name="bot_response")
+    def chat_logic1(chatbot, chat_input):
+        if not flag:
+            welcome_text.value = "You must log in to send messages."
+            return 0
+        return bot(chatbot)  
+    
+    chat_msg = chat_input.submit(chat_logic, [chatbot, chat_input], [chatbot, chat_input])
+    bot_msg = chat_msg.then(chat_logic1, chatbot, chatbot, api_name="bot_response")
     bot_msg.then(lambda: gr.MultimodalTextbox(interactive=True), None, [chat_input])
 
     clear_button.click(clear_history, [], [chatbot, chat_input])
@@ -143,3 +165,6 @@ with gr.Blocks(fill_height=True) as demo:
                         [username_input, password_input, logout_button, welcome_text, register_button, login_button])
 
 demo.launch(share=True)
+
+
+print("work?")
