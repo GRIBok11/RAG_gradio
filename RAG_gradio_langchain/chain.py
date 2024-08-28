@@ -6,14 +6,23 @@ from operator import itemgetter
 from config import groq_api_key
 from retriever import retriever  # Import retriever
 
-eval_llm = ChatGroq(
+sum_llm = ChatGroq(
     temperature=0,
     groq_api_key=groq_api_key,
     model_name="Llama3-70b-8192"
 )
 
+llm = ChatGroq(
+        temperature=0.7,
+        groq_api_key=groq_api_key,
+        model_name="mixtral-8x7b-32768"
+    )
+
+
+
+
 def create_chain(retriever):
-    chain_sum = load_summarize_chain(eval_llm, chain_type="refine")
+    chain_sum = load_summarize_chain(sum_llm, chain_type="refine")
 
     prompt = ChatPromptTemplate.from_messages(
         [
@@ -27,7 +36,7 @@ def create_chain(retriever):
         ]
     )
 
-    response_generator = prompt | eval_llm | StrOutputParser()
+    response_generator = prompt | llm | StrOutputParser()
     chain = (
         {
             "context": itemgetter("question") | retriever | chain_sum,

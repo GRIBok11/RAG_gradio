@@ -9,7 +9,7 @@ embedding_function = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 child_splitter = RecursiveCharacterTextSplitter(chunk_size=400)
 parent_splitter = RecursiveCharacterTextSplitter(chunk_size=2000)
 
-vectorstore = Chroma(collection_name="split_parents", embedding_function=embedding_function, persist_directory="vectore")
+vectorstore = Chroma(collection_name="split_parents", embedding_function= embedding_function, persist_directory="vectore")
 store = InMemoryStore()
 
 retriever = ParentDocumentRetriever(
@@ -18,4 +18,3 @@ retriever = ParentDocumentRetriever(
     child_splitter=child_splitter,
     parent_splitter=parent_splitter,
 )
-
