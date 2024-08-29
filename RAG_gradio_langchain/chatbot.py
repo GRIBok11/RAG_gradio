@@ -4,12 +4,24 @@ from loaders import load_documents
 from retriever import retriever
 from chain import chain
 import mimetypes
+import json
+from loaders import load_documents
+def save_history(history, username):
+    with open(f"{username}_history.json", "w") as file:
+        json.dump(history, file)
 
+def load_history(username):
+    try:
+        with open(f"{username}_history.json", "r") as file:
+            history = json.load(file)
+        return history
+    except FileNotFoundError:
+        return []
 request_count = 0
 max_requests = 20
 history = []
 
-def add_message(history, message):
+def add_message(history, message,username):
     global request_count
     if request_count >= max_requests:
         return history, gr.MultimodalTextbox(value="Request limit reached. Please clear history.", interactive=False)
@@ -33,9 +45,10 @@ def add_message(history, message):
     if message["text"] is not None:
         history.append((message["text"], None))
     print(history)
+    save_history(history, username)
     return history, gr.MultimodalTextbox(value=None, interactive=False)
 
-def bot(history):
+def bot(history,username):
     
     global request_count
     request_count=len(history)
@@ -60,7 +73,7 @@ def bot(history):
     except Exception as e:
         print(f"Error generating response: {e}")
         history[-1][1] = f"An error occurred while generating the response.\n\nRequest Count: {request_count}/{max_requests}"
-    
+    save_history(history, username)
     return history
 
 def clear_history():
