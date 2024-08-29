@@ -1,8 +1,9 @@
 from langchain_community.document_loaders import TextLoader, PyPDFLoader
+from typing import List, Union
 
-loade = TextLoader("hihi.txt", encoding='utf-8')
+loade: TextLoader = TextLoader("hihi.txt", encoding='utf-8')
 
-def load_documents(file_path, mime_type):
+def load_documents(file_path: str, mime_type: str) -> List[Union[str, dict]]:
     try:
         if mime_type == "application/pdf":
             loader = PyPDFLoader(file_path)

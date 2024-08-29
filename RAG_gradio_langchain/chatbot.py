@@ -4,25 +4,39 @@ from loaders import load_documents
 from retriever import retriever
 from chain import chain
 import mimetypes
+from transformers import GPT2Tokenizer
 import json
-from loaders import load_documents
-def save_history(history, username):
+from typing import List, Tuple, Any
+
+def save_history(history: List[Tuple[str, str]], username: str) -> None:
     with open(f"{username}_history.json", "w") as file:
         json.dump(history, file)
 
-def load_history(username):
+def load_history(username: str) -> List[Tuple[str, str]]:
     try:
         with open(f"{username}_history.json", "r") as file:
             history = json.load(file)
         return history
     except FileNotFoundError:
         return []
-request_count = 0
-max_requests = 20
-history = []
 
-def add_message(history, message,username):
+request_count: int = 0
+max_requests: int = 20
+history: List[Tuple[str, str]] = []
+
+def count_tokens(history: List[Tuple[str, str]]) -> int:
+    tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+    total_tokens = 0
+    for human, ai in history:
+        if human is not None:
+            total_tokens += len(tokenizer.encode(human))
+        if ai is not None:
+            total_tokens += len(tokenizer.encode(ai))
+    return total_tokens
+
+def add_message(history: List[Tuple[str, str]], message: dict, username: str) -> Tuple[List[Tuple[str, str]], gr.MultimodalTextbox]:
     global request_count
+  
     if request_count >= max_requests:
         return history, gr.MultimodalTextbox(value="Request limit reached. Please clear history.", interactive=False)
     
@@ -44,31 +58,35 @@ def add_message(history, message,username):
 
     if message["text"] is not None:
         history.append((message["text"], None))
-    print(history)
+    
     save_history(history, username)
     return history, gr.MultimodalTextbox(value=None, interactive=False)
 
-def bot(history,username):
-    
+def bot(history: List[Tuple[str, str]], username: str) -> List[Tuple[str, str]]:
+    max_tokens: int = 5000
     global request_count
-    request_count=len(history)
+    request_count = len(history)
     print(len(history))
+    print("tokens")
+    print(count_tokens(history))
+    if count_tokens(history) > max_tokens:
+        history.pop()
+        return history, gr.MultimodalTextbox(value="Token limit exceeded. Please clear history.", interactive=False)
     if request_count >= max_requests:
         return history
     
     if history is None:
         history = []
-    history_langchain_format = []
+    history_langchain_format: List[Any] = []
     for human, ai in history:
         if human is not None:
             history_langchain_format.append(HumanMessage(content=human))
         if ai is not None:
             history_langchain_format.append(AIMessage(content=ai))
     try:
-        
-        gpt_response = chain.invoke({"question": history[-1][0]})
+        gpt_response: str = chain.invoke({"question": history[-1][0]})
         gpt_response += f"\n\nRequest Count: {request_count}/{max_requests}"
-        request_count+=0.5
+        request_count += 0.5
         history[-1][1] = gpt_response  # Обрабатываем строковый ответ
     except Exception as e:
         print(f"Error generating response: {e}")
@@ -76,7 +94,7 @@ def bot(history,username):
     save_history(history, username)
     return history
 
-def clear_history():
+def clear_history() -> Tuple[List[Tuple[str, str]], gr.MultimodalTextbox]:
     from retriever import vectorstore
     try:
         for collection in vectorstore._client.list_collections():
