@@ -1,5 +1,6 @@
 .env
 .vscode/
-.rag_gradio/
+rag_gradio/RAG_gradio_langchain
 RAG_gradio_langchain/__pycache__
 RAG_gradio_langchain/vectore
+RAG_gradio_langchain12
