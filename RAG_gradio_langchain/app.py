@@ -19,6 +19,33 @@ from sqlalchemy.orm import sessionmaker, Session
 
 from chatbot import add_message,bot
 from utils import clear_history,verify_password,load_previous_history
+import json
+
+
+
+from typing import List, Tuple, Any
+
+def authenticate_user(username: str, password: str) -> bool:
+    session: Session = SessionLocal()
+    user: User = session.query(User).filter(User.username == username).first()
+    session.close()
+
+    if user and verify_password(password, user.password_hash):
+        return True
+    return False
+
+def save_chat_history(username: str, history) -> None:
+    session = SessionLocal()
+    user = session.query(User).filter(User.username == username).first()
+    
+
+    chat_history = ChatHistory(user_id=user.id, chat_content="hi")
+    session.add(chat_history)
+    session.commit()
+    session.close()
+
+
+
 
 
 
@@ -48,6 +75,20 @@ class User(Base):
     password_hash = Column(String, nullable=False)
     session_id = Column(String, unique=True, nullable=True)
 
+
+
+from sqlalchemy import DateTime
+from datetime import datetime
+
+class ChatHistory(Base):
+    __tablename__ = "chat_history"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, nullable=False)
+    chat_content = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.now)  # Добавляем дату и время создания
+
+
+
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
@@ -61,30 +102,42 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-nlsdnksdkvn'fj'vfd'k
 
 
 
+def on_load_chat_click(chat_id: int, username: str):
+    # Загрузить выбранный чат
+    history = load_selected_chat(chat_id)
+    #vectorstore = load_existing_vectorstore(username, chat_id)
+    return history
+    
 def random_plot():
     df = px.data.iris()
     fig = px.scatter(df, x="sepal_width", y="sepal_length", color="species",
                     size='petal_length', hover_data=['petal_width'])
     return fig
 
+def get_user_chats(username: str):
+    session = SessionLocal()
+    user = session.query(User).filter(User.username == username).first()
+    
+    if user:
+        chats = session.query(ChatHistory).filter(ChatHistory.user_id == user.id).all()
+        chat_list = [{"id": chat.id, "created_at": chat.created_at.strftime("%Y-%m-%d %H:%M:%S")} for chat in chats]
+        session.close()
+        return chat_list
+    session.close()
+    return []
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+def load_selected_chat(chat_id: int) -> List[Tuple[str, str]]:
+    session = SessionLocal()
+    chat = session.query(ChatHistory).filter(ChatHistory.user_id == chat_id).first()
+    
+    if chat:
+        session.close()
+        return json.loads(chat.chat_content)
+    session.close()
+    return [["non","non"]]
 
 # Настройки интерфейса Gradio
 with gr.Blocks(fill_height=True) as demo:
@@ -99,7 +152,7 @@ with gr.Blocks(fill_height=True) as demo:
                                       placeholder="Enter message or upload file...", show_label=False)
     clear_button = gr.Button("🗑", size="sm")
     cl_button = gr.Button("qwer", size="sm")
-
+    chat_list_dropdown = gr.Dropdown(label="Select a chat to load", choices=[])
     
     user_name_state = gr.State("")
     vectorstore_state = gr.State(None)
@@ -151,15 +204,17 @@ with gr.Blocks(fill_height=True) as demo:
     demo.load(update_message, [], [m, chatbot, user_name_state, vectorstore_state, retriever_state])
 
     def af(username):
+        save_chat_history(username, "hi")
         print(username)
 
     chat_msg = chat_input.submit(add_message, [chatbot, chat_input, retriever_state,user_name_state], [chatbot, chat_input])
     bot_msg = chat_msg.then(bot, [chatbot,  retriever_state,user_name_state], chatbot, api_name="bot_response")
     bot_msg.then(lambda: gr.MultimodalTextbox(interactive=True), None, [chat_input])
-    clear_button.click(clear_history, [vectorstore_state,retriever_state], [chatbot, chat_input])
+    chat_list_dropdown.change(on_load_chat_click, inputs=[chat_list_dropdown, user_name_state], outputs=[chatbot])
+    clear_button.click(clear_history, [vectorstore_state, retriever_state], [chatbot, chat_input])
     logout_button = gr.Button("Logout", link="/logout")
     cl_button.click(af, user_name_state)
 
 
 
-demo.launch(server_port=4444, auth=authenticate_user , share= True)
+demo.launch(server_port=4444, auth=authenticate_user , share=True)

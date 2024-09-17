@@ -3,6 +3,23 @@ from langchain_community.document_loaders import TextLoader
 import bcrypt
 import json
 from typing import List, Tuple, Any
+import gradio as gr
+import plotly.express as px
+from langchain_community.document_loaders import TextLoader
+from dotenv import load_dotenv
+import os
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.vectorstores import Chroma
+from langchain.storage import InMemoryStore
+from langchain.retrievers import ParentDocumentRetriever
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
+import bcrypt
+from sqlalchemy import create_engine, Column, Integer, String
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, Session
 
 def save_history(history: List[Tuple[str, str]], username: str) -> None:
     with open(f"vectorstores/{username}/{username}_history.json", "w") as file:
@@ -16,9 +33,61 @@ def load_history(username: str) -> List[Tuple[str, str]]:
     except FileNotFoundError:
         return []
 
+from sqlalchemy.orm import sessionmaker, Session
+load_dotenv()
+DATABASE_URL: str = os.getenv('DATABASE_URL')
+engine = create_engine(DATABASE_URL)
+Base = declarative_base()
 
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True, nullable=False)
+    password_hash = Column(String, nullable=False)
+    session_id = Column(String, unique=True, nullable=True)
 
+from sqlalchemy import DateTime
+from datetime import datetime
 
+class ChatHistory(Base):
+    __tablename__ = "chat_history"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, nullable=False)
+    chat_content = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.now)  # Добавляем дату и время создания
+
+def save_chat_history(username: str, history: List[Tuple[str, str]]) -> None:
+    session = SessionLocal()
+    user = session.query(User).filter(User.username == username).first()
+    
+    if user:
+        chat_history = ChatHistory(user_id=user.id, chat_content=json.dumps(history))
+        session.add(chat_history)
+        session.commit()
+    session.close()
+
+def get_user_chats(username: str):
+    session = SessionLocal()
+    user = session.query(User).filter(User.username == username).first()
+    
+    if user:
+        chats = session.query(ChatHistory).filter(ChatHistory.user_id == user.id).all()
+        chat_list = [{"id": chat.id, "created_at": chat.created_at.strftime("%Y-%m-%d %H:%M:%S")} for chat in chats]
+        session.close()
+        return chat_list
+    session.close()
+    return []
+
+def load_selected_chat(chat_id: int) -> List[Tuple[str, str]]:
+    session = SessionLocal()
+    chat = session.query(ChatHistory).filter(ChatHistory.id == chat_id).first()
+    
+    if chat:
+        session.close()
+        return json.loads(chat.chat_content)
+    session.close()
+    return []
 
 
 def hash_password(password: str) -> str:

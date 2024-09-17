@@ -16,17 +16,18 @@ import mimetypes
 from sqlalchemy.ext.declarative import declarative_base
 from typing import List, Tuple, Any, Optional
 from transformers import GPT2Tokenizer
-from utils import save_history
+from utils import save_history, save_chat_history
 
 tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
-MAX_TOKENS = 7000  
+MAX_TOKENS = 4000
 load_dotenv()
 groq_api_key = os.getenv('groq_api_key')
 
 llm = ChatGroq(
     temperature=0.7,
     groq_api_key=groq_api_key,
-    model_name="mixtral-8x7b-32768"
+    model_name="mixtral-8x7b-32768",
+    max_tokens=4000,
 )
 embedding_function = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
@@ -55,7 +56,7 @@ def count_tokens(history: List[Tuple[str, str]]) -> int:
 def bot(history: List[Tuple[str, Optional[str]]], 
         retriever: ParentDocumentRetriever, 
         name: str) -> List[Tuple[str, Optional[str]]]:
-    max_tokens: int = 5000
+    max_tokens: int = 100
     if history is None:
         history = []
     history_langchain_format = []
@@ -80,7 +81,9 @@ def bot(history: List[Tuple[str, Optional[str]]],
     if count_tokens(history) > max_tokens:
         history.pop()
         return history, gr.MultimodalTextbox(value="Token limit exceeded. Please clear history.", interactive=False)
+    
     save_history(history, name)
+    save_chat_history(name,history)
     return history
 
 def add_message(history: List[Tuple[str, Optional[str]]], 
@@ -121,6 +124,7 @@ def add_message(history: List[Tuple[str, Optional[str]]],
         history.append((message["text"], None))
   
     save_history(history, name)
+    save_chat_history(name, history)
     return history, gr.MultimodalTextbox(value=None, interactive=False)
 
 def create_chain(retriever: ParentDocumentRetriever) -> Tuple[Any, int]:
