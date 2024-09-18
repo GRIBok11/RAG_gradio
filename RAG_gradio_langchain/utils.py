@@ -57,7 +57,7 @@ class ChatHistory(Base):
     chat_content = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.now)  # Добавляем дату и время создания
 
-def save_chat_history(username: str, history: List[Tuple[str, str]]) -> None:
+def create_new_chat(username: str, history: List[Tuple[str, str]]) -> None:
     session = SessionLocal()
     user = session.query(User).filter(User.username == username).first()
     
@@ -65,7 +65,45 @@ def save_chat_history(username: str, history: List[Tuple[str, str]]) -> None:
         chat_history = ChatHistory(user_id=user.id, chat_content=json.dumps(history))
         session.add(chat_history)
         session.commit()
+    id1 = chat_history.id
     session.close()
+    return history, id1
+
+
+
+def save_chat_history(username: str, chat_id: int, history: List[Tuple[str, str]]) -> None:
+    session = SessionLocal()
+    user = session.query(User).filter(User.username == username).first()
+    
+    if user:
+        # Ищем запись чата по chat_id и проверяем, что этот чат принадлежит пользователю
+        chat_history = session.query(ChatHistory).filter(ChatHistory.id == chat_id, ChatHistory.user_id == user.id).first()
+        
+        if chat_history:
+            # Обновляем содержимое чата
+            chat_history.chat_content = json.dumps(history)
+            session.commit()
+        else:
+            print(f"No chat found with ID {chat_id} for user {username}")
+    
+    session.close()
+
+def load_last_chat(username: str) -> Tuple[List[Tuple[str, str]], int]:
+    session = SessionLocal()
+    user = session.query(User).filter(User.username == username).first()
+    
+    if user:
+        # Получаем последний созданный чат
+        last_chat = session.query(ChatHistory).filter(ChatHistory.user_id == user.id).order_by(ChatHistory.created_at.desc()).first()
+        if last_chat:
+            history = json.loads(last_chat.chat_content)
+            session.close()
+            return history, last_chat.id  # Возвращаем историю и chat_id последнего чата
+    session.close()
+    return create_new_chat(username,[["non","non"]])
+
+
+
 
 def get_user_chats(username: str):
     session = SessionLocal()

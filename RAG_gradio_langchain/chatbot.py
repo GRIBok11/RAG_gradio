@@ -55,7 +55,8 @@ def count_tokens(history: List[Tuple[str, str]]) -> int:
 
 def bot(history: List[Tuple[str, Optional[str]]], 
         retriever: ParentDocumentRetriever, 
-        name: str) -> List[Tuple[str, Optional[str]]]:
+        name: str,
+        id: int) -> List[Tuple[str, Optional[str]]]:
     max_tokens: int = 100
     if history is None:
         history = []
@@ -83,13 +84,14 @@ def bot(history: List[Tuple[str, Optional[str]]],
         return history, gr.MultimodalTextbox(value="Token limit exceeded. Please clear history.", interactive=False)
     
     save_history(history, name)
-    save_chat_history(name,history)
+    save_chat_history(name, id, history)
     return history
 
 def add_message(history: List[Tuple[str, Optional[str]]], 
                 message: dict, 
                 retriever_state: ParentDocumentRetriever, 
-                name: str) -> Tuple[List[Tuple[str, Optional[str]]], gr.components.MultimodalTextbox]:
+                name: str,
+                id: int) -> Tuple[List[Tuple[str, Optional[str]]], gr.components.MultimodalTextbox]:
 
     
     if history is None:
@@ -122,9 +124,9 @@ def add_message(history: List[Tuple[str, Optional[str]]],
 
     if message["text"] is not None:
         history.append((message["text"], None))
-  
+
+    save_chat_history(name, id, history)
     save_history(history, name)
-    save_chat_history(name, history)
     return history, gr.MultimodalTextbox(value=None, interactive=False)
 
 def create_chain(retriever: ParentDocumentRetriever) -> Tuple[Any, int]:

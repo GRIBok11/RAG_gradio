@@ -18,7 +18,7 @@ from sqlalchemy.orm import sessionmaker, Session
 
 
 from chatbot import add_message,bot
-from utils import clear_history,verify_password,load_previous_history
+from utils import clear_history,verify_password,load_previous_history,load_last_chat, create_new_chat
 import json
 
 
@@ -152,11 +152,14 @@ with gr.Blocks(fill_height=True) as demo:
                                       placeholder="Enter message or upload file...", show_label=False)
     clear_button = gr.Button("🗑", size="sm")
     cl_button = gr.Button("qwer", size="sm")
-    chat_list_dropdown = gr.Dropdown(label="Select a chat to load", choices=[])
+    #chat_list_dropdown = gr.Dropdown(label="Select a chat to load", choices=[])
+    new_chat_button = gr.Button("New Chat")
     
+    chat_id_state = gr.State(None)  # Добавляем state для хранения chat_id
     user_name_state = gr.State("")
     vectorstore_state = gr.State(None)
     retriever_state = gr.State(None)
+    asd = gr.State([["non","non"]])
 
     def update_message(request: gr.Request):
         username = request.username  # Получаем имя пользователя
@@ -167,9 +170,6 @@ with gr.Blocks(fill_height=True) as demo:
         parent_splitter = RecursiveCharacterTextSplitter(chunk_size=2000)
 
         store = InMemoryStore()
-
-
-
         history = []
         # Создаем директорию пользователя, если её нет
         os.makedirs(user_directory, exist_ok=True)
@@ -188,17 +188,16 @@ with gr.Blocks(fill_height=True) as demo:
             child_splitter=child_splitter,
             parent_splitter=parent_splitter,
         )
-        
+        #chat_list = get_user_chats(username)
+        #chat_choices = [f"Chat {chat['id']} - {chat['created_at']}" for chat in chat_list]
+
         # Загружаем примерные данные для retriever (если необходимо)
         loade = TextLoader("hihi.txt", encoding='utf-8')
         docs = loade.load()
         retriever.add_documents(docs)
         
-        # Загружаем историю чата для пользователя
-        history, _ = load_previous_history(username)
-        
-        return f"Welcome, {username}", history, username, vectorstore, retriever
-    
+        history, chat_id = load_last_chat(username)
+        return f"Welcome, {username}", history, username, chat_id, vectorstore, retriever#, chat_choices
     m = gr.Textbox(label="Username")
 
     demo.load(update_message, [], [m, chatbot, user_name_state, vectorstore_state, retriever_state])
@@ -207,11 +206,14 @@ with gr.Blocks(fill_height=True) as demo:
         save_chat_history(username, "hi")
         print(username)
 
-    chat_msg = chat_input.submit(add_message, [chatbot, chat_input, retriever_state,user_name_state], [chatbot, chat_input])
-    bot_msg = chat_msg.then(bot, [chatbot,  retriever_state,user_name_state], chatbot, api_name="bot_response")
+    
+
+    chat_msg = chat_input.submit(add_message, [chatbot, chat_input, retriever_state,user_name_state, chat_id_state], [chatbot, chat_input])
+    bot_msg = chat_msg.then(bot, [chatbot, retriever_state, user_name_state, chat_id_state], chatbot, api_name="bot_response")
     bot_msg.then(lambda: gr.MultimodalTextbox(interactive=True), None, [chat_input])
-    chat_list_dropdown.change(on_load_chat_click, inputs=[chat_list_dropdown, user_name_state], outputs=[chatbot])
+    #chat_list_dropdown.change(on_load_chat_click, inputs=[chat_list_dropdown, user_name_state], outputs=[chatbot])
     clear_button.click(clear_history, [vectorstore_state, retriever_state], [chatbot, chat_input])
+    new_chat_button.click(create_new_chat, inputs=[user_name_state,asd], outputs=[chatbot, chat_id_state])
     logout_button = gr.Button("Logout", link="/logout")
     cl_button.click(af, user_name_state)
 
