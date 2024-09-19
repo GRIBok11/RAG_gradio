@@ -16,7 +16,7 @@ import mimetypes
 from sqlalchemy.ext.declarative import declarative_base
 from typing import List, Tuple, Any, Optional
 from transformers import GPT2Tokenizer
-from utils import save_history
+from utils import save_history , save_chat_history
 
 tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
 MAX_TOKENS = 7000  
@@ -65,11 +65,16 @@ def bot(history: List[Tuple[str, Optional[str]]],
         if ai is not None:
             history_langchain_format.append(AIMessage(content=ai))
     
-    
+
     chain = create_chain(retriever)
-
-    gpt_response = chain.invoke({"question": history[-1][0]})
-
+    try:
+        gpt_response = chain.invoke({"question": history[-1][0]})
+        history[-1][1] = gpt_response
+    except Exception as e:
+        # Логируем ошибку и возвращаем сообщение о переполнении контекста
+        print(f"Error during chain invocation: {e}")
+        history[-1][1] = f"Error during chain invocation: {e}"
+        return history
 
     
     history[-1][1] = gpt_response
@@ -81,6 +86,7 @@ def bot(history: List[Tuple[str, Optional[str]]],
         history.pop()
         return history, gr.MultimodalTextbox(value="Token limit exceeded. Please clear history.", interactive=False)
     save_history(history, name)
+    save_chat_history(name, history)
     return history
 
 def add_message(history: List[Tuple[str, Optional[str]]], 
@@ -89,20 +95,14 @@ def add_message(history: List[Tuple[str, Optional[str]]],
                 name: str) -> Tuple[List[Tuple[str, Optional[str]]], gr.components.MultimodalTextbox]:
 
     
-    if history is None:
-        history = []
-    
+    if history == []:
+        print("hdfnom[dhfgnjmolfhgjnob;]")
+        loade = TextLoader("hihi.txt", encoding='utf-8')
+        do = loade.load()
+        retriever_state.add_documents(do,ids=None)
     if not message["text"] and not message["files"]:
         return history, gr.MultimodalTextbox(value="Please enter a message or upload a file.", interactive=True)
     
-  
-    if not retriever_state.vectorstore._client.list_collections():
-        return history, gr.MultimodalTextbox(value="Retriever is empty. Please upload documents first.", interactive=True)
-
-  
-  
-    
- 
     for x in message["files"]:
         mime_type, encoding = mimetypes.guess_type(x)
 
@@ -121,6 +121,7 @@ def add_message(history: List[Tuple[str, Optional[str]]],
         history.append((message["text"], None))
   
     save_history(history, name)
+    save_chat_history(name, history)
     return history, gr.MultimodalTextbox(value=None, interactive=False)
 
 def create_chain(retriever: ParentDocumentRetriever) -> Tuple[Any, int]:

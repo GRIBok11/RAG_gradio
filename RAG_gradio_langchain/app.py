@@ -20,7 +20,8 @@ from sqlalchemy.orm import sessionmaker, Session
 from chatbot import add_message,bot
 from utils import clear_history,verify_password,load_previous_history
 
-
+from langchain_postgres import PGVector
+from langchain_postgres.vectorstores import PGVector
 
 
 def authenticate_user(username: str, password: str) -> bool:
@@ -34,7 +35,7 @@ def authenticate_user(username: str, password: str) -> bool:
 
 
 load_dotenv()
-DATABASE_URL: str = os.getenv('DATABASE_URL')
+DATABASE_URL: str = os.getenv('DATABASE_URL_docker')
 engine = create_engine(DATABASE_URL)
 Base = declarative_base()
 
@@ -49,6 +50,7 @@ class User(Base):
     session_id = Column(String, unique=True, nullable=True)
 
 Base.metadata.create_all(bind=engine)
+
 
 app = FastAPI()
 
@@ -122,10 +124,14 @@ with gr.Blocks(fill_height=True) as demo:
         os.makedirs(user_directory, exist_ok=True)
         
         # Создаем vectorstore для пользователя
-        vectorstore = Chroma(
-            collection_name="split_parents",
-            embedding_function=embedding_function,
-            persist_directory=user_directory
+        collection_name = f"vectorstores/{username}"
+
+
+        vectorstore = PGVector(
+            embeddings=embedding_function,
+            collection_name=collection_name,
+            connection=DATABASE_URL,
+            use_jsonb=True,
         )
         
         # Создаем retriever для пользователя
@@ -135,11 +141,10 @@ with gr.Blocks(fill_height=True) as demo:
             child_splitter=child_splitter,
             parent_splitter=parent_splitter,
         )
-        
         # Загружаем примерные данные для retriever (если необходимо)
         loade = TextLoader("hihi.txt", encoding='utf-8')
         docs = loade.load()
-        retriever.add_documents(docs)
+        retriever.add_documents(docs,ids=None)
         
         # Загружаем историю чата для пользователя
         history, _ = load_previous_history(username)
@@ -156,10 +161,10 @@ with gr.Blocks(fill_height=True) as demo:
     chat_msg = chat_input.submit(add_message, [chatbot, chat_input, retriever_state,user_name_state], [chatbot, chat_input])
     bot_msg = chat_msg.then(bot, [chatbot,  retriever_state,user_name_state], chatbot, api_name="bot_response")
     bot_msg.then(lambda: gr.MultimodalTextbox(interactive=True), None, [chat_input])
-    clear_button.click(clear_history, [vectorstore_state,retriever_state], [chatbot, chat_input])
+    clear_button.click(clear_history, [user_name_state],[chatbot])
     logout_button = gr.Button("Logout", link="/logout")
     cl_button.click(af, user_name_state)
 
 
 
-demo.launch(server_port=4444, auth=authenticate_user , share= True)
+demo.launch(auth=authenticate_user , share= True)
